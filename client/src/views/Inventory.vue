@@ -149,6 +149,7 @@ export default {
     const loadInventory = async () => {
       try {
         loading.value = true
+        error.value = null
         const filters = getCurrentFilters()
         // Inventory doesn't support month/status filters, only warehouse and category
         items.value = await api.getInventory({

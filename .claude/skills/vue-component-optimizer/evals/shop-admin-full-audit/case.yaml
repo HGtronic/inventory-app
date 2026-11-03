@@ -1,0 +1,12 @@
+schema_version: "1.1"
+name: shop-admin-full-audit
+expected_outcome: |
+  A markdown report ranks real, located findings: the index-keyed ProductRow state bug and the
+  v-if+v-for flagged-orders bug as High, the products page's uncached filtering, per-row category
+  lookup, deep watcher and unpaginated 3000 rows, the OrdersView resize-listener leak, duplicated
+  loading boilerplate, currency formatters (diverged, utils/format.js ignored), status badges and
+  pagination, prop mutation in OrderFilters, prop drilling and dead code. Decoys (static index keys,
+  skeleton loop, small deep-watched settings, cheap formatters, cleared interval) are not reported as
+  problems. No source file changes; the run ends by offering to apply fixes.
+context:
+  scaffold_script: place-files.sh

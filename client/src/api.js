@@ -134,5 +134,14 @@ export const api = {
   async getMonthlyTrends() {
     const response = await axios.get(`${API_BASE_URL}/reports/monthly-trends`)
     return response.data
+  },
+
+  async getOrdersByStatus(status) {
+    const params = new URLSearchParams()
+    if (status) {
+      params.append('status', status)
+    }
+    const response = await axios.get(`${API_BASE_URL}/orders?${params.toString()}`)
+    return response.data
   }
 }

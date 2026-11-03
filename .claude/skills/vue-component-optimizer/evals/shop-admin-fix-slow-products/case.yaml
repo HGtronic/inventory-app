@@ -1,0 +1,11 @@
+schema_version: "1.1"
+name: shop-admin-fix-slow-products
+expected_outcome: |
+  The run diagnoses the products page (index key on stateful rows, filteredProducts() called three
+  times per render, per-row categories.find, deep watcher, all 3000 rows rendered) and fixes it:
+  stable keys so ticked rows stay with their product, computed filtering with a category map, no deep
+  watcher. Search, sort, category names, product count and total stock value behave as before; typing
+  into search is measurably faster; other pages are left alone; the build passes and the explanation
+  names the root causes.
+context:
+  scaffold_script: place-files.sh
