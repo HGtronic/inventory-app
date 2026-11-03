@@ -47,17 +47,17 @@
         <div class="chart-container">
           <div class="bar-chart">
             <div class="y-axis">
-              <span>{{ currencySymbol }}{{ maxRevenueValue }}K</span>
-              <span>{{ currencySymbol }}{{ Math.round(maxRevenueValue * 0.75) }}K</span>
-              <span>{{ currencySymbol }}{{ Math.round(maxRevenueValue * 0.5) }}K</span>
-              <span>{{ currencySymbol }}{{ Math.round(maxRevenueValue * 0.25) }}K</span>
-              <span>{{ currencySymbol }}0</span>
+              <span>{{ formatAxisTick(maxRevenueValue) }}</span>
+              <span>{{ formatAxisTick(Math.round(maxRevenueValue * 0.75)) }}</span>
+              <span>{{ formatAxisTick(Math.round(maxRevenueValue * 0.5)) }}</span>
+              <span>{{ formatAxisTick(Math.round(maxRevenueValue * 0.25)) }}</span>
+              <span>{{ formatAxisTick(0) }}</span>
             </div>
             <div class="chart-area">
               <div v-for="month in monthlyRevenue" :key="month.month" class="bar-group-revenue">
                 <div class="revenue-bars">
-                  <div class="revenue-bar" :style="{ height: getRevenueBarHeight(month.revenue) + '%' }" :title="`Revenue: ${currencySymbol}${month.revenue.toLocaleString()}`"></div>
-                  <div class="cost-bar" :style="{ height: getRevenueBarHeight(month.costs) + '%' }" :title="`Costs: ${currencySymbol}${month.costs.toLocaleString()}`"></div>
+                  <div class="revenue-bar" :style="{ height: getRevenueBarHeight(month.revenue) + '%' }" :title="`Revenue: ${formatCurrency(month.revenue)}`"></div>
+                  <div class="cost-bar" :style="{ height: getRevenueBarHeight(month.costs) + '%' }" :title="`Costs: ${formatCurrency(month.costs)}`"></div>
                 </div>
                 <span class="bar-label">{{ translateMonth(month.month) }}</span>
               </div>
@@ -80,20 +80,20 @@
         <div class="chart-container">
           <div class="bar-chart">
             <div class="y-axis">
-              <span>{{ currencySymbol }}25K</span>
-              <span>{{ currencySymbol }}20K</span>
-              <span>{{ currencySymbol }}15K</span>
-              <span>{{ currencySymbol }}10K</span>
-              <span>{{ currencySymbol }}5K</span>
-              <span>{{ currencySymbol }}0</span>
+              <span>{{ formatAxisTick(25) }}</span>
+              <span>{{ formatAxisTick(20) }}</span>
+              <span>{{ formatAxisTick(15) }}</span>
+              <span>{{ formatAxisTick(10) }}</span>
+              <span>{{ formatAxisTick(5) }}</span>
+              <span>{{ formatAxisTick(0) }}</span>
             </div>
             <div class="chart-area">
               <div v-for="month in monthlySpending" :key="month.month" class="bar-group">
                 <div class="stacked-bar" @click="showCostDetail(month)">
-                  <div class="bar-segment procurement" :style="{ height: getBarHeight(month.procurement) + '%' }" :title="`Procurement: ${currencySymbol}${month.procurement.toLocaleString()}`"></div>
-                  <div class="bar-segment operational" :style="{ height: getBarHeight(month.operational) + '%' }" :title="`Operational: ${currencySymbol}${month.operational.toLocaleString()}`"></div>
-                  <div class="bar-segment labor" :style="{ height: getBarHeight(month.labor) + '%' }" :title="`Labor: ${currencySymbol}${month.labor.toLocaleString()}`"></div>
-                  <div class="bar-segment overhead" :style="{ height: getBarHeight(month.overhead) + '%' }" :title="`Overhead: ${currencySymbol}${month.overhead.toLocaleString()}`"></div>
+                  <div class="bar-segment procurement" :style="{ height: getBarHeight(month.procurement) + '%' }" :title="`Procurement: ${formatCurrency(month.procurement)}`"></div>
+                  <div class="bar-segment operational" :style="{ height: getBarHeight(month.operational) + '%' }" :title="`Operational: ${formatCurrency(month.operational)}`"></div>
+                  <div class="bar-segment labor" :style="{ height: getBarHeight(month.labor) + '%' }" :title="`Labor: ${formatCurrency(month.labor)}`"></div>
+                  <div class="bar-segment overhead" :style="{ height: getBarHeight(month.overhead) + '%' }" :title="`Overhead: ${formatCurrency(month.overhead)}`"></div>
                 </div>
                 <span class="bar-label">{{ translateMonth(month.month) }}</span>
               </div>
@@ -112,7 +112,7 @@
             <div v-for="category in categorySpending" :key="category.category" class="category-item">
               <div class="category-info">
                 <div class="category-name">{{ translateCategory(category.category) }}</div>
-                <div class="category-amount">{{ currencySymbol }}{{ category.amount.toLocaleString() }}</div>
+                <div class="category-amount">{{ formatCurrency(category.amount) }}</div>
               </div>
               <div class="category-bar-container">
                 <div class="category-bar" :style="{ width: category.percentage + '%' }"></div>
@@ -154,7 +154,7 @@
                   <td class="transaction-description">{{ transaction.description }}</td>
                   <td class="transaction-vendor">{{ transaction.vendor }}</td>
                   <td class="transaction-date">{{ formatDateShort(transaction.date) }}</td>
-                  <td class="transaction-amount text-right">{{ currencySymbol }}{{ transaction.amount.toLocaleString() }}</td>
+                  <td class="transaction-amount text-right">{{ formatCurrencyWithDecimals(transaction.amount, currentCurrency, 2) }}</td>
                 </tr>
               </tbody>
             </table>
@@ -176,7 +176,11 @@ import { ref, onMounted, watch, computed } from 'vue'
 import { api } from '../api'
 import { useFilters } from '../composables/useFilters'
 import { useI18n } from '../composables/useI18n'
-import { formatCurrency as formatCurrencyUtil } from '../utils/currency'
+import {
+  formatCurrency as formatCurrencyUtil,
+  formatCurrencyWithDecimals,
+  formatCurrencyCompact
+} from '../utils/currency'
 import CostDetailModal from '../components/CostDetailModal.vue'
 
 export default {
@@ -379,9 +383,11 @@ export default {
       return formatCurrencyUtil(value, currentCurrency.value)
     }
 
-    const currencySymbol = computed(() => {
-      return currentCurrency.value === 'JPY' ? '¥' : '$'
-    })
+    // Y-axis tick label. Takes thousands of USD (the unit the chart scales are defined in),
+    // converts to the active currency and abbreviates. Bar heights stay USD ratios and are unaffected.
+    const formatAxisTick = (thousandsUsd) => {
+      return formatCurrencyCompact(thousandsUsd * 1000, currentCurrency.value)
+    }
 
     const getBarHeight = (value) => {
       const maxValue = 25000
@@ -474,7 +480,9 @@ export default {
       monthlyRevenue,
       maxRevenueValue,
       formatCurrency,
-      currencySymbol,
+      formatCurrencyWithDecimals,
+      currentCurrency,
+      formatAxisTick,
       getBarHeight,
       getRevenueBarHeight,
       formatDate,
@@ -788,7 +796,9 @@ export default {
 
 .transactions-table th {
   text-align: left;
-  padding: 0.625rem 0.75rem;
+  /* Narrower horizontal padding so all 5 columns fit the half-width card
+     (it overflowed by ~17px at a 1200px viewport, clipping the Amount column) */
+  padding: 0.625rem 0.5rem;
   font-weight: 600;
   color: #475569;
   font-size: 0.75rem;
@@ -802,7 +812,7 @@ export default {
 }
 
 .transactions-table td {
-  padding: 0.75rem 0.75rem;
+  padding: 0.75rem 0.5rem;
   border-bottom: 1px solid #f1f5f9;
   font-size: 0.875rem;
 }
@@ -843,6 +853,7 @@ export default {
 
 .transaction-amount {
   font-weight: 700;
+  white-space: nowrap;
   color: #0f172a;
 }
 

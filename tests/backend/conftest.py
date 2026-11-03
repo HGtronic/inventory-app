@@ -11,7 +11,31 @@ from fastapi.testclient import TestClient
 server_path = Path(__file__).parent.parent.parent / "server"
 sys.path.insert(0, str(server_path))
 
+import main
 from main import app
+
+
+@pytest.fixture(autouse=True)
+def reset_restock_orders():
+    """Clear in-memory restock orders so submitted orders don't leak between tests."""
+    main.restock_orders.clear()
+    yield
+    main.restock_orders.clear()
+
+
+# purchase_orders starts as the contents of purchase_orders.json, so restore
+# that snapshot instead of clearing it.
+_initial_purchase_orders = [dict(po) for po in main.purchase_orders]
+
+
+@pytest.fixture(autouse=True)
+def reset_tasks_and_purchase_orders():
+    """Reset in-memory tasks and purchase orders so created records don't leak between tests."""
+    main.tasks.clear()
+    main.purchase_orders[:] = [dict(po) for po in _initial_purchase_orders]
+    yield
+    main.tasks.clear()
+    main.purchase_orders[:] = [dict(po) for po in _initial_purchase_orders]
 
 
 @pytest.fixture

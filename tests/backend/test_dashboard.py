@@ -171,3 +171,116 @@ class TestDashboardEndpoints:
 
         # Allow small floating point differences
         assert abs(dashboard_data["total_inventory_value"] - expected_value) < 0.01
+
+
+KPI_FIELDS = [
+    "inventory_turnover",
+    "orders_fulfilled",
+    "total_orders",
+    "order_fill_rate",
+    "avg_delivery_days",
+    "avg_promised_lead_days",
+]
+
+
+def _days(start, end):
+    from datetime import datetime
+    return (datetime.fromisoformat(end) - datetime.fromisoformat(start)).total_seconds() / 86400
+
+
+class TestDashboardKpis:
+    """Test suite for the KPI fields of /api/dashboard/summary.
+
+    Each test recomputes a KPI from /api/orders and /api/inventory so the
+    summary is checked against the raw data, not against hard-coded numbers.
+    """
+
+    def test_kpi_fields_present(self, client):
+        """Test that the summary includes every KPI field."""
+        data = client.get("/api/dashboard/summary").json()
+        for field in KPI_FIELDS:
+            assert field in data
+
+    def test_orders_fulfilled_counts_delivered_orders(self, client):
+        """Test that orders_fulfilled is the number of delivered orders, out of all orders."""
+        orders = client.get("/api/orders").json()
+        data = client.get("/api/dashboard/summary").json()
+
+        assert data["total_orders"] == len(orders)
+        assert data["orders_fulfilled"] == sum(1 for o in orders if o["status"] == "Delivered")
+
+    def test_order_fill_rate_excludes_backordered(self, client):
+        """Test that the fill rate is the share of orders that are not backordered."""
+        orders = client.get("/api/orders").json()
+        not_backordered = sum(1 for o in orders if o["status"] != "Backordered")
+        data = client.get("/api/dashboard/summary").json()
+
+        assert abs(data["order_fill_rate"] - not_backordered / len(orders) * 100) < 0.05
+
+    def test_avg_delivery_days_calculation(self, client):
+        """Test average delivery time and promised lead time over delivered orders."""
+        orders = client.get("/api/orders").json()
+        timed = [o for o in orders if o["status"] == "Delivered" and o.get("actual_delivery")]
+        expected_delivery = sum(_days(o["order_date"], o["actual_delivery"]) for o in timed) / len(timed)
+        expected_promised = sum(_days(o["order_date"], o["expected_delivery"]) for o in timed) / len(timed)
+
+        data = client.get("/api/dashboard/summary").json()
+        assert abs(data["avg_delivery_days"] - expected_delivery) < 0.05
+        assert abs(data["avg_promised_lead_days"] - expected_promised) < 0.05
+
+    def test_inventory_turnover_calculation(self, client):
+        """Test turnover = annualized cost of shipped/delivered units / inventory value."""
+        orders = client.get("/api/orders").json()
+        inventory = client.get("/api/inventory").json()
+        unit_cost = {item["sku"]: item["unit_cost"] for item in inventory}
+        cogs = sum(
+            line["quantity"] * unit_cost[line["sku"]]
+            for o in orders if o["status"] in ("Delivered", "Shipped")
+            for line in o["items"]
+        )
+        inventory_value = sum(i["quantity_on_hand"] * i["unit_cost"] for i in inventory)
+        months = len({o["order_date"][:7] for o in orders})
+
+        data = client.get("/api/dashboard/summary").json()
+        assert abs(data["inventory_turnover"] - cogs * 12 / months / inventory_value) < 0.01
+
+    def test_inventory_turnover_annualizes_single_month(self, client):
+        """Test that a one-month view scales cost of goods sold by 12."""
+        orders = client.get("/api/orders?month=2025-03").json()
+        inventory = client.get("/api/inventory").json()
+        unit_cost = {item["sku"]: item["unit_cost"] for item in inventory}
+        cogs = sum(
+            line["quantity"] * unit_cost[line["sku"]]
+            for o in orders if o["status"] in ("Delivered", "Shipped")
+            for line in o["items"]
+        )
+        inventory_value = sum(i["quantity_on_hand"] * i["unit_cost"] for i in inventory)
+
+        data = client.get("/api/dashboard/summary?month=2025-03").json()
+        assert abs(data["inventory_turnover"] - cogs * 12 / inventory_value) < 0.01
+
+    def test_kpis_follow_filters(self, client):
+        """Test that KPIs are computed from the filtered orders."""
+        orders = client.get("/api/orders?warehouse=Tokyo&month=Q2-2025").json()
+        data = client.get("/api/dashboard/summary?warehouse=Tokyo&month=Q2-2025").json()
+
+        assert data["total_orders"] == len(orders)
+        assert data["orders_fulfilled"] == sum(1 for o in orders if o["status"] == "Delivered")
+
+    def test_kpis_empty_period_are_null(self, client):
+        """Test that ratio KPIs are null, not 0, when no orders match."""
+        data = client.get("/api/dashboard/summary?month=2030-01").json()
+
+        assert data["total_orders"] == 0
+        assert data["orders_fulfilled"] == 0
+        assert data["order_fill_rate"] is None
+        assert data["avg_delivery_days"] is None
+        assert data["avg_promised_lead_days"] is None
+
+    def test_backordered_filter_has_no_delivery_kpis(self, client):
+        """Test that a backordered-only view has a 0% fill rate and no delivery times."""
+        data = client.get("/api/dashboard/summary?status=backordered").json()
+
+        assert data["total_orders"] > 0
+        assert data["order_fill_rate"] == 0
+        assert data["avg_delivery_days"] is None

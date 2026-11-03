@@ -74,7 +74,7 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref } from 'vue'
 import { useAuth } from '../composables/useAuth'
 import { useI18n } from '../composables/useI18n'
 
@@ -84,8 +84,13 @@ const { t } = useI18n()
 const isDropdownOpen = ref(false)
 const emit = defineEmits(['show-profile-details', 'show-tasks'])
 
-const pendingTaskCount = computed(() => {
-  return currentUser.value.tasks.filter(task => task.status === 'pending').length
+// App.vue owns the task list (mock tasks with local edits plus API tasks), so the
+// badge count comes from there rather than from currentUser.tasks.
+defineProps({
+  pendingTaskCount: {
+    type: Number,
+    default: 0
+  }
 })
 
 const toggleDropdown = () => {

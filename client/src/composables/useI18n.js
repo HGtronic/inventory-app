@@ -52,6 +52,12 @@ export function useI18n() {
   }
 
   const replacePlaceholders = (text, params) => {
+    // Plural forms: 'singular | plural' picks a form by params.count
+    // ("1 item" vs "2 items"). Strings without ' | ' are unaffected.
+    if (text.includes(' | ') && params.count !== undefined) {
+      const [singular, plural] = text.split(' | ')
+      text = Number(params.count) === 1 ? singular : plural
+    }
     return text.replace(/\{(\w+)\}/g, (match, key) => {
       return params[key] !== undefined ? params[key] : match
     })

@@ -1,0 +1,6 @@
+schema_version: "1.1"
+name: inventory-sidebar-redesign
+expected_outcome: |
+  The top nav is replaced by a left sidebar listing every route with correct active state; the filter bar, language switcher and profile menu still work; spacing uses one token scale across views; the build passes and the project's palette and no-emoji rule are respected.
+context:
+  scaffold_script: place-files.sh

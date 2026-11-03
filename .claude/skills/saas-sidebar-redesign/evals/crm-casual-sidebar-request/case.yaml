@@ -1,0 +1,6 @@
+schema_version: "1.1"
+name: crm-casual-sidebar-request
+expected_outcome: |
+  The CRM gets a left sidebar with all five routes, and search, alerts dropdown, user menu (with sign-out) and quarter picker all keep working in their new homes; the sticky sub-bar no longer depends on a 64px header; spacing is consistent; the build passes.
+context:
+  scaffold_script: place-files.sh

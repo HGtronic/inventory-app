@@ -25,6 +25,22 @@ class TestDemandEndpoints:
             assert "forecasted_demand" in forecast
             assert "trend" in forecast
             assert "period" in forecast
+            assert "unit_cost" in forecast
+            assert "quantity_on_hand" in forecast
+            assert "lead_time_days" in forecast
+
+    def test_demand_forecast_restock_field_types(self, client):
+        """Test that restocking fields on forecasts have valid types and ranges."""
+        response = client.get("/api/demand")
+        data = response.json()
+
+        for forecast in data:
+            assert isinstance(forecast["unit_cost"], (int, float))
+            assert isinstance(forecast["quantity_on_hand"], int)
+            assert isinstance(forecast["lead_time_days"], int)
+            assert forecast["unit_cost"] > 0
+            assert forecast["quantity_on_hand"] >= 0
+            assert forecast["lead_time_days"] > 0
 
     def test_demand_forecast_trends(self, client):
         """Test that demand forecasts have valid trend values."""

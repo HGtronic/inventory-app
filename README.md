@@ -16,6 +16,7 @@ A full-stack demo application for a Claude Code workshop — inventory managemen
 - Inventory tracking across multiple warehouses
 - Order management with status tracking
 - Demand forecasting with trend analysis
+- Budget-based restocking recommendations and restock orders
 - Backlog monitoring
 - Spending analytics
 
@@ -46,6 +47,8 @@ npm install
 npm run dev
 ```
 
+**Using a different backend port:** if port 8001 is taken, set `API_PORT` for the backend and `VITE_API_BASE_URL` for the frontend (see `.env.example`). With the start script, `API_PORT=8002 ./scripts/start.sh` sets both.
+
 ## API Endpoints
 
 All endpoints support optional filtering via query params: `warehouse`, `category`, `status`, `month`
@@ -56,6 +59,11 @@ All endpoints support optional filtering via query params: `warehouse`, `categor
 - `GET /api/backlog` - Backlog items
 - `GET /api/dashboard/summary` - Summary statistics
 - `GET /api/spending/*` - Spending data
+- `GET /api/restocking/recommendations?budget=` - Restock items that fit a budget
+- `GET` / `POST /api/restocking/orders` - Submitted restock orders
+- `GET /api/reports/quarterly`, `GET /api/reports/monthly-trends` - Performance reports
+- `POST /api/purchase-orders`, `GET /api/purchase-orders/{backlog_item_id}` - Purchase orders for backlog items
+- `GET` / `POST /api/tasks`, `PATCH` / `DELETE /api/tasks/{id}` - User tasks
 
 ## Demo Data
 

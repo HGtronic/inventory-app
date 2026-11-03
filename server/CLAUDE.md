@@ -11,6 +11,8 @@ uv run python main.py
 # API docs at http://localhost:8001/docs
 ```
 
+To use another port, set `API_PORT` (e.g. `API_PORT=8002 uv run python main.py`) and point the client at it with `VITE_API_BASE_URL` in `client/.env`.
+
 ## Development Best Practices
 
 ### API Design Principles

@@ -1,6 +1,8 @@
 import axios from 'axios'
 
-const API_BASE_URL = 'http://localhost:8001/api'
+// Defaults to the documented backend port. Override with VITE_API_BASE_URL in
+// client/.env (gitignored) when the backend runs elsewhere, e.g. API_PORT=8002.
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8001/api'
 
 export const api = {
   async getInventory(filters = {}) {
@@ -101,6 +103,36 @@ export const api = {
 
   async getPurchaseOrderByBacklogItem(backlogItemId) {
     const response = await axios.get(`${API_BASE_URL}/purchase-orders/${backlogItemId}`)
+    return response.data
+  },
+
+  // Omitting budget makes the server use the full restock cost, which the
+  // Restocking view reads once to size its budget slider.
+  async getRestockRecommendations(budget = null) {
+    const params = new URLSearchParams()
+    if (budget !== null && budget !== undefined) params.append('budget', budget)
+
+    const response = await axios.get(`${API_BASE_URL}/restocking/recommendations?${params.toString()}`)
+    return response.data
+  },
+
+  async getRestockOrders() {
+    const response = await axios.get(`${API_BASE_URL}/restocking/orders`)
+    return response.data
+  },
+
+  async createRestockOrder({ budget, items }) {
+    const response = await axios.post(`${API_BASE_URL}/restocking/orders`, { budget, items })
+    return response.data
+  },
+
+  async getQuarterlyReports() {
+    const response = await axios.get(`${API_BASE_URL}/reports/quarterly`)
+    return response.data
+  },
+
+  async getMonthlyTrends() {
+    const response = await axios.get(`${API_BASE_URL}/reports/monthly-trends`)
     return response.data
   }
 }

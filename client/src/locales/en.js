@@ -6,6 +6,8 @@ export default {
     orders: 'Orders',
     finance: 'Finance',
     demandForecast: 'Demand Forecast',
+    restocking: 'Restocking',
+    reports: 'Reports',
     companyName: 'Catalyst Components',
     subtitle: 'Inventory Management System'
   },
@@ -21,7 +23,8 @@ export default {
       revenue: 'Revenue (Orders)',
       revenueYTD: 'Revenue (Orders) YTD',
       revenueMTD: 'Revenue (Orders) MTD',
-      avgProcessingTime: 'Avg Processing Time (Days)',
+      avgDeliveryTime: 'Avg Delivery Time (Days)',
+      promisedLeadTime: 'Promised lead time',
       goal: 'Goal'
     },
     summary: {
@@ -44,6 +47,7 @@ export default {
     },
     inventoryShortages: {
       title: 'Inventory Shortages',
+      viewAll: 'View all',
       noShortages: 'No inventory shortages - all orders can be fulfilled!',
       noData: 'No inventory data for selected filters',
       orderId: 'Order ID',
@@ -55,7 +59,7 @@ export default {
       daysDelayed: 'Days Delayed',
       priority: 'Priority',
       unitsShort: 'units short',
-      days: 'days'
+      days: '{count} day | {count} days'
     },
     topProducts: {
       title: 'Top Products by Revenue',
@@ -110,9 +114,14 @@ export default {
     totalRevenue: 'Total Revenue',
     avgOrderValue: 'Avg Order Value',
     onTimeDelivery: 'On-Time Delivery',
-    itemsCount: '{count} items',
+    itemsCount: '{count} item | {count} items',
     quantity: 'Qty',
+    submittedOrders: 'Submitted Orders',
+    noSubmittedOrders: 'No submitted restock orders yet.',
+    leadTimeDays: '{days} days',
     table: {
+      leadTime: 'Lead Time',
+      totalCost: 'Total Cost',
       orderNumber: 'Order Number',
       orderId: 'Order ID',
       orderDate: 'Order Date',
@@ -174,7 +183,7 @@ export default {
     increasingDemand: 'Increasing Demand',
     stableDemand: 'Stable Demand',
     decreasingDemand: 'Decreasing Demand',
-    itemsCount: '{count} items',
+    itemsCount: '{count} item | {count} items',
     more: 'more...',
     demandForecasts: 'Demand Forecasts',
     table: {
@@ -185,6 +194,41 @@ export default {
       change: 'Change',
       trend: 'Trend',
       period: 'Period'
+    }
+  },
+
+  // Restocking
+  restocking: {
+    title: 'Restocking',
+    description: 'Set a budget and order what the demand forecast needs most',
+    budget: 'Available Budget',
+    fullRestockCost: 'Full restock cost: {amount}',
+    allocated: 'Allocated',
+    remaining: 'Remaining',
+    itemsRecommended: 'Items Recommended',
+    recommendations: 'Recommended Items',
+    notCovered: '{count} item not covered by this budget | {count} items not covered by this budget',
+    partial: 'Partial',
+    placeOrder: 'Place Order',
+    placing: 'Placing order...',
+    orderPlaced: 'Order {orderNumber} submitted. Expected delivery in {days} days.',
+    viewInOrders: 'View in Orders',
+    allStocked: 'All forecast items are fully stocked or already on order.',
+    budgetTooLow: 'Increase the budget to see recommendations.',
+    loadFailed: 'Failed to load restocking recommendations.',
+    orderFailed: 'Could not place the order. Please try again.',
+    table: {
+      sku: 'SKU',
+      item: 'Item',
+      trend: 'Trend',
+      forecast: 'Forecast',
+      onHand: 'On Hand',
+      onOrder: 'On Order',
+      shortfall: 'Shortfall',
+      orderQty: 'Order Qty',
+      unitCost: 'Unit Cost',
+      lineTotal: 'Line Total',
+      leadTime: 'Lead Time'
     }
   },
 
@@ -204,6 +248,7 @@ export default {
     shipped: 'Shipped',
     processing: 'Processing',
     backordered: 'Backordered',
+    submitted: 'Submitted',
     inStock: 'In Stock',
     lowStock: 'Low Stock',
     adequate: 'Adequate'
@@ -324,5 +369,117 @@ export default {
     filter: 'Filter',
     export: 'Export',
     items: 'items'
+  },
+
+  // Purchase orders for backlog items (Dashboard shortages table + PurchaseOrderModal)
+  purchaseOrders: {
+    createPO: 'Create PO',
+    viewPO: 'View PO',
+    createTitle: 'Create Purchase Order',
+    viewTitle: 'Purchase Order Details',
+    close: 'Close',
+    cancel: 'Cancel',
+    submit: 'Create Purchase Order',
+    submitting: 'Creating...',
+    loading: 'Loading purchase order...',
+    sku: 'SKU',
+    orderId: 'Order ID',
+    quantityNeeded: 'Quantity Needed',
+    quantityAvailable: 'Quantity Available',
+    shortfall: 'Shortfall',
+    supplierName: 'Supplier Name',
+    supplierPlaceholder: 'Enter supplier name',
+    quantity: 'Quantity',
+    unitCostIn: 'Unit Cost ({currency})',
+    alreadyExists: 'A purchase order already existed for this item. Showing the existing order.',
+    expectedDelivery: 'Expected Delivery',
+    orderTotal: 'Order Total',
+    notesOptional: 'Notes (optional)',
+    notesPlaceholder: 'Add any notes for this order',
+    poId: 'PO ID',
+    status: 'Status',
+    supplier: 'Supplier',
+    unitCost: 'Unit Cost',
+    total: 'Total',
+    createdDate: 'Created',
+    notes: 'Notes',
+    noNotes: 'No notes',
+    statuses: {
+      pending: 'Pending'
+    },
+    errors: {
+      supplierRequired: 'Supplier name is required',
+      supplierTooLong: 'Supplier name must be 200 characters or fewer',
+      quantityInvalid: 'Enter a whole number greater than 0',
+      unitCostInvalid: 'Enter an amount greater than 0',
+      deliveryRequired: 'Select an expected delivery date',
+      notesTooLong: 'Notes must be 1000 characters or fewer',
+      createFailed: 'Failed to create the purchase order. Please try again.',
+      loadFailed: 'Failed to load the purchase order.',
+      notFound: 'No purchase order found for this item.'
+    }
+  },
+
+  // Performance reports view (views/Reports.vue)
+  reports: {
+    title: 'Performance Reports',
+    description: 'View quarterly performance metrics and monthly trends',
+    loading: 'Loading reports...',
+    loadFailed: 'Failed to load reports: {message}',
+    // Quarter values arrive from the API as "Q1-2025"; these templates rebuild that label per locale
+    quarterLabel: 'Q{quarter}-{year}',
+    // {month} is the localized short month name from months.*, {year} the four-digit year
+    monthLabel: '{month} {year}',
+    quarterly: {
+      title: 'Quarterly Performance',
+      quarter: 'Quarter',
+      totalOrders: 'Total Orders',
+      totalRevenue: 'Total Revenue',
+      avgOrderValue: 'Avg Order Value',
+      fulfillmentRate: 'Fulfillment Rate'
+    },
+    monthlyTrend: {
+      title: 'Monthly Revenue Trend'
+    },
+    monthOverMonth: {
+      title: 'Month-over-Month Analysis',
+      month: 'Month',
+      orders: 'Orders',
+      revenue: 'Revenue',
+      change: 'Change',
+      growthRate: 'Growth Rate'
+    },
+    stats: {
+      totalRevenueYtd: 'Total Revenue (YTD)',
+      avgMonthlyRevenue: 'Avg Monthly Revenue',
+      totalOrdersYtd: 'Total Orders (YTD)',
+      bestQuarter: 'Best Performing Quarter'
+    }
+  },
+
+  // Backlog management view (views/Backlog.vue, route /backlog)
+  backlog: {
+    title: 'Backlog Management',
+    description: 'Track and resolve inventory shortages',
+    loading: 'Loading backlog...',
+    loadFailed: 'Failed to load backlog: {message}',
+    itemsTitle: 'Backlog Items',
+    noBacklog: 'No backlog items - all orders can be fulfilled!',
+    // {priority} is filled from priority.* ("High" -> "High Priority")
+    priorityStat: '{priority} Priority',
+    totalItems: 'Total Backlog Items',
+    unitsShort: '{count} units short',
+    days: '{count} day | {count} days',
+    poPlaced: 'PO placed',
+    table: {
+      orderId: 'Order ID',
+      sku: 'SKU',
+      itemName: 'Item Name',
+      quantityNeeded: 'Quantity Needed',
+      quantityAvailable: 'Quantity Available',
+      shortage: 'Shortage',
+      daysDelayed: 'Days Delayed',
+      priority: 'Priority'
+    }
   }
 }

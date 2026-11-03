@@ -27,7 +27,7 @@ Use the Task tool with these specialized subagents for appropriate tasks:
 
 ## Stack
 - **Frontend**: Vue 3 + Composition API + Vite (port 3000)
-- **Backend**: Python FastAPI (port 8001)
+- **Backend**: Python FastAPI (port 8001; override with `API_PORT` on the server and `VITE_API_BASE_URL` on the client, see `.env.example`)
 - **Data**: JSON files in `server/data/` loaded via `server/mock_data.py`
 
 ## Quick Start
@@ -48,12 +48,22 @@ npm install && npm run dev
 **Data Flow**: Vue filters → `client/src/api.js` → FastAPI → In-memory filtering → Pydantic validation → Computed properties
 **Reactivity**: Raw data in refs (`allOrders`, `inventoryItems`), derived data in computed properties
 
+## Code Style
+- Always document non-obvious logic changes with comments
+
 ## API Endpoints
 - `GET /api/inventory` - Filters: warehouse, category
 - `GET /api/orders` - Filters: warehouse, category, status, month
-- `GET /api/dashboard/summary` - All filters
+- `GET /api/dashboard/summary` - All filters. Includes KPI fields (`inventory_turnover`, `orders_fulfilled`/`total_orders`, `order_fill_rate`, `avg_delivery_days`/`avg_promised_lead_days`) computed from the filtered data; null when the filtered set is empty
 - `GET /api/demand`, `/api/backlog` - No filters
 - `GET /api/spending/*` - Summary, monthly, categories, transactions
+- `GET /api/restocking/recommendations` - Param: `budget` (USD, optional; defaults to full restock cost). Priority-fill allocation over demand forecasts
+- `GET /api/restocking/orders`, `POST /api/restocking/orders` - Submitted restock orders (in-memory, reset on restart; separate from customer orders)
+- `GET /api/reports/quarterly`, `/api/reports/monthly-trends` - Computed from orders, no filters
+- `POST /api/purchase-orders`, `GET /api/purchase-orders/{backlog_item_id}` - One PO per backlog item (409 on a second); sets `has_purchase_order` on `/api/backlog`
+- `GET`/`POST /api/tasks`, `PATCH`/`DELETE /api/tasks/{id}` - Profile-menu tasks; PATCH toggles pending/completed. JSON uses `dueDate` (camelCase) to match the client
+
+**Restocking data**: demand forecasts carry `unit_cost`, `quantity_on_hand`, `lead_time_days`. Shortfall = forecast - on hand - on order. Design: `docs/restocking-tab-plan.md`
 
 ## Common Issues
 1. Use unique keys in v-for (not `index`) - use `sku`, `month`, etc.

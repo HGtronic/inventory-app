@@ -15,10 +15,10 @@
             <div class="kpi-header">
               <span class="kpi-label">{{ t('dashboard.kpi.inventoryTurnover') }}</span>
             </div>
-            <div class="kpi-value">4.2</div>
-            <div class="kpi-goal">{{ t('dashboard.kpi.goal') }}: 4.5 (-6.67%)</div>
+            <div class="kpi-value">{{ turnoverKpi.value }}</div>
+            <div class="kpi-goal">{{ turnoverKpi.goalLine }}</div>
             <div class="kpi-progress-bar">
-              <div class="kpi-progress" style="width: 93.33%"></div>
+              <div class="kpi-progress" :class="{ success: turnoverKpi.met }" :style="{ width: turnoverKpi.width + '%' }"></div>
             </div>
           </div>
 
@@ -26,10 +26,10 @@
             <div class="kpi-header">
               <span class="kpi-label">{{ t('dashboard.kpi.ordersFulfilled') }}</span>
             </div>
-            <div class="kpi-value">{{ ordersData.fulfilled }}</div>
-            <div class="kpi-goal">{{ t('dashboard.kpi.goal') }}: {{ ordersData.goal }} ({{ calculatePercentage(ordersData.fulfilled, ordersData.goal) }}%)</div>
+            <div class="kpi-value">{{ ordersFulfilledKpi.value }}</div>
+            <div class="kpi-goal">{{ ordersFulfilledKpi.goalLine }}</div>
             <div class="kpi-progress-bar">
-              <div class="kpi-progress" :style="{ width: calculatePercentage(ordersData.fulfilled, ordersData.goal) + '%' }"></div>
+              <div class="kpi-progress" :class="{ success: ordersFulfilledKpi.met }" :style="{ width: ordersFulfilledKpi.width + '%' }"></div>
             </div>
           </div>
 
@@ -37,10 +37,10 @@
             <div class="kpi-header">
               <span class="kpi-label">{{ t('dashboard.kpi.orderFillRate') }}</span>
             </div>
-            <div class="kpi-value">{{ fillRate }}%</div>
-            <div class="kpi-goal">{{ t('dashboard.kpi.goal') }}: 95% ({{ fillRate - 95 > 0 ? '+' : '' }}{{ (fillRate - 95).toFixed(2) }}%)</div>
+            <div class="kpi-value">{{ fillRateKpi.value }}</div>
+            <div class="kpi-goal">{{ fillRateKpi.goalLine }}</div>
             <div class="kpi-progress-bar">
-              <div class="kpi-progress success" :style="{ width: (fillRate / 95 * 100) + '%' }"></div>
+              <div class="kpi-progress" :class="{ success: fillRateKpi.met }" :style="{ width: fillRateKpi.width + '%' }"></div>
             </div>
           </div>
 
@@ -57,12 +57,12 @@
 
           <div class="kpi-card">
             <div class="kpi-header">
-              <span class="kpi-label">{{ t('dashboard.kpi.avgProcessingTime') }}</span>
+              <span class="kpi-label">{{ t('dashboard.kpi.avgDeliveryTime') }}</span>
             </div>
-            <div class="kpi-value">2.8</div>
-            <div class="kpi-goal">{{ t('dashboard.kpi.goal') }}: 3.0 (-6.67%)</div>
+            <div class="kpi-value">{{ deliveryTimeKpi.value }}</div>
+            <div class="kpi-goal">{{ deliveryTimeKpi.goalLine }}</div>
             <div class="kpi-progress-bar">
-              <div class="kpi-progress success" style="width: 93.33%"></div>
+              <div class="kpi-progress" :class="{ success: deliveryTimeKpi.met }" :style="{ width: deliveryTimeKpi.width + '%' }"></div>
             </div>
           </div>
         </div>
@@ -161,6 +161,7 @@
         <div class="card chart-card full-width">
           <div class="card-header">
             <h3 class="card-title">{{ t('dashboard.inventoryShortages.title') }} ({{ backlogItems.length }})</h3>
+            <router-link to="/backlog" class="card-header-link">{{ t('dashboard.inventoryShortages.viewAll') }}</router-link>
           </div>
           <div v-if="backlogItems.length === 0" class="no-backlog">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="success-icon">
@@ -200,7 +201,7 @@
                   </td>
                   <td @click="showBacklogDetail(item)" style="cursor: pointer;">
                     <span :style="{ color: item.days_delayed > 7 ? '#ef4444' : '#f59e0b', fontWeight: 600 }">
-                      {{ item.days_delayed }} {{ t('dashboard.inventoryShortages.days') }}
+                      {{ t('dashboard.inventoryShortages.days', { count: item.days_delayed }) }}
                     </span>
                   </td>
                   <td @click="showBacklogDetail(item)" style="cursor: pointer;">
@@ -210,18 +211,18 @@
                   </td>
                   <td>
                     <button
-                      v-if="!item.purchase_order_id"
+                      v-if="!item.has_purchase_order"
                       @click.stop="openPOModal(item)"
                       class="po-button create"
                     >
-                      Create PO
+                      {{ t('purchaseOrders.createPO') }}
                     </button>
                     <button
                       v-else
                       @click.stop="viewPO(item)"
                       class="po-button view"
                     >
-                      View PO
+                      {{ t('purchaseOrders.viewPO') }}
                     </button>
                   </td>
                 </tr>
@@ -292,6 +293,7 @@
       :mode="poModalMode"
       @close="showPOModal = false"
       @po-created="handlePOCreated"
+      @po-exists="handlePOExists"
     />
   </div>
 </template>
@@ -304,12 +306,63 @@ import { useI18n } from '../composables/useI18n'
 import { formatCurrency } from '../utils/currency'
 import ProductDetailModal from '../components/ProductDetailModal.vue'
 import BacklogDetailModal from '../components/BacklogDetailModal.vue'
+import PurchaseOrderModal from '../components/PurchaseOrderModal.vue'
+
+// Fixed KPI targets. The other goals come from the data (total orders, promised
+// lead time) or from the revenue calculation in setup().
+const INVENTORY_TURNOVER_GOAL = 4.5
+const ORDER_FILL_RATE_GOAL = 95
+
+// Shown instead of a number when there is nothing to show (null value, or no usable goal).
+const KPI_EMPTY = '-'
+
+const isNumber = (v) => typeof v === 'number' && Number.isFinite(v)
+
+// Compares a KPI value with its goal. `performance` is a signed fraction where
+// positive always means "better than goal", so the +/- percentage and the progress
+// bar read the same way whichever direction is good:
+//   higher is better: value / goal - 1        lower is better: 1 - value / goal
+// The bar is 100 + performance * 100 (i.e. value / goal when higher is better),
+// clamped to the 0-100% track, and is full exactly when the goal is met.
+// A missing value, or a goal that is null or 0 (nothing to divide by), gives an
+// empty bar and no percentage, so NaN/Infinity can never reach the template.
+const compareToGoal = (value, goal, lowerIsBetter = false) => {
+  if (!isNumber(value) || !isNumber(goal) || goal <= 0) {
+    return { performance: null, width: 0, met: false }
+  }
+  const performance = lowerIsBetter ? 1 - value / goal : value / goal - 1
+  return {
+    performance,
+    width: Math.min(100, Math.max(0, 100 + performance * 100)),
+    met: performance >= 0
+  }
+}
+
+// "+16.3%" / "-6.7%" / "0.0%", or '' when there is no comparison. The sign is
+// taken from the rounded number so a tiny shortfall doesn't render as "-0.0%".
+const formatSignedPercent = (performance) => {
+  if (performance === null) return ''
+  const rounded = Number((performance * 100).toFixed(1))
+  return `${rounded > 0 ? '+' : ''}${rounded.toFixed(1)}%`
+}
+
+const formatKpiValue = (value, decimals, suffix = '') =>
+  isNumber(value) ? `${value.toFixed(decimals)}${suffix}` : KPI_EMPTY
+
+// A goal of 0 or null is unusable (and would make the percentage infinite), so it shows '-'.
+const formatGoalValue = (goal, decimals = 0, suffix = '') =>
+  isNumber(goal) && goal > 0 ? `${goal.toFixed(decimals)}${suffix}` : KPI_EMPTY
+
+// "Goal: 4.5 (+12.0%)"; the parenthesis is left out when there is no percentage.
+const buildGoalLine = (label, goalText, comparisonText) =>
+  comparisonText ? `${label}: ${goalText} (${comparisonText})` : `${label}: ${goalText}`
 
 export default {
   name: 'Dashboard',
   components: {
     ProductDetailModal,
     BacklogDetailModal,
+    PurchaseOrderModal,
   },
   setup() {
     const { t, currentCurrency, translateProductName, translateWarehouse } = useI18n()
@@ -337,9 +390,6 @@ export default {
       getCurrentFilters
     } = useFilters()
 
-    const ordersData = ref({ fulfilled: 187, goal: 200 })
-    const fillRate = ref(96.8)
-
     const revenueGoal = computed(() => {
       // $800K per month, so if looking at all months (12 months), goal is 12 * 800K = 9.6M
       const monthlyGoal = 800000
@@ -354,6 +404,77 @@ export default {
         return `$${(revenueGoal.value / 1000000).toFixed(1)}M`
       }
       return `$${(revenueGoal.value / 1000).toFixed(0)}K`
+    })
+
+    // KPI cards below read the server-computed fields of /api/dashboard/summary,
+    // which already follow all four filters. Each computed returns the display
+    // value, the full goal line and the progress bar state for one card.
+    // Turnover is annualized, so values far above the goal are expected.
+    const turnoverKpi = computed(() => {
+      const value = summary.value.inventory_turnover
+      const progress = compareToGoal(value, INVENTORY_TURNOVER_GOAL)
+      return {
+        value: formatKpiValue(value, 1),
+        goalLine: buildGoalLine(
+          t('dashboard.kpi.goal'),
+          formatGoalValue(INVENTORY_TURNOVER_GOAL, 1),
+          formatSignedPercent(progress.performance)
+        ),
+        width: progress.width,
+        met: progress.met
+      }
+    })
+
+    // The goal is every order in the period fulfilled, so the percentage shown is
+    // fulfilled / total (the bar width) rather than a +/- difference.
+    const ordersFulfilledKpi = computed(() => {
+      const fulfilled = summary.value.orders_fulfilled
+      const total = summary.value.total_orders
+      const progress = compareToGoal(fulfilled, total)
+      return {
+        value: formatKpiValue(fulfilled, 0),
+        goalLine: buildGoalLine(
+          t('dashboard.kpi.goal'),
+          formatGoalValue(total),
+          progress.performance === null ? '' : `${progress.width.toFixed(1)}%`
+        ),
+        width: progress.width,
+        met: progress.met
+      }
+    })
+
+    const fillRateKpi = computed(() => {
+      const value = summary.value.order_fill_rate
+      const progress = compareToGoal(value, ORDER_FILL_RATE_GOAL)
+      return {
+        value: formatKpiValue(value, 1, '%'),
+        goalLine: buildGoalLine(
+          t('dashboard.kpi.goal'),
+          formatGoalValue(ORDER_FILL_RATE_GOAL, 0, '%'),
+          formatSignedPercent(progress.performance)
+        ),
+        width: progress.width,
+        met: progress.met
+      }
+    })
+
+    // The data has no ship date, so this is order -> delivery time. The goal is the
+    // lead time promised for the same orders. Lower is better: delivering faster than
+    // promised counts as beating the goal (positive percentage, full green bar).
+    const deliveryTimeKpi = computed(() => {
+      const value = summary.value.avg_delivery_days
+      const promised = summary.value.avg_promised_lead_days
+      const progress = compareToGoal(value, promised, true)
+      return {
+        value: formatKpiValue(value, 1),
+        goalLine: buildGoalLine(
+          t('dashboard.kpi.promisedLeadTime'),
+          formatGoalValue(promised, 1),
+          formatSignedPercent(progress.performance)
+        ),
+        width: progress.width,
+        met: progress.met
+      }
     })
 
     const statusData = computed(() => {
@@ -581,10 +702,6 @@ export default {
       }
     }
 
-    const calculatePercentage = (value, goal) => {
-      return ((value / goal) * 100).toFixed(2)
-    }
-
     // Compute total orders once for efficiency
     const totalOrders = computed(() => {
       return statusData.value.delivered + statusData.value.shipped +
@@ -663,13 +780,26 @@ export default {
     }
 
     const handlePOCreated = (poData) => {
-      // Update the backlog item with the new PO ID
+      // /api/backlog reports has_purchase_order, so flip it locally to match a reload
       const item = allBacklogItems.value.find(b => b.id === poData.backlog_item_id)
       if (item) {
-        item.purchase_order_id = poData.id
-        item.purchase_order = poData
+        item.has_purchase_order = true
       }
       showPOModal.value = false
+    }
+
+    // The server said this item already has a PO (409), e.g. it was created from
+    // another tab. Sync the button, then show the existing PO.
+    const handlePOExists = (backlogItemId) => {
+      const item = allBacklogItems.value.find(b => b.id === backlogItemId)
+      if (item) {
+        item.has_purchase_order = true
+      }
+      // Only switch to view mode if the create form for this item is still open. If the
+      // user closed it while the request was in flight, don't pop the modal back open.
+      if (showPOModal.value && selectedBacklogForPO.value?.id === backlogItemId) {
+        poModalMode.value = 'view'
+      }
     }
 
     // Watch for filter changes and reload data
@@ -684,8 +814,10 @@ export default {
       loading,
       error,
       summary,
-      ordersData,
-      fillRate,
+      turnoverKpi,
+      ordersFulfilledKpi,
+      fillRateKpi,
+      deliveryTimeKpi,
       statusData,
       orderHealthMetrics,
       categoryData,
@@ -694,7 +826,6 @@ export default {
       maxOrderCount,
       topProducts,
       backlogItems,
-      calculatePercentage,
       getCircleSegment,
       getStockBadge,
       translateCategory,
@@ -720,7 +851,8 @@ export default {
       poModalMode,
       openPOModal,
       viewPO,
-      handlePOCreated
+      handlePOCreated,
+      handlePOExists
     }
   }
 }
@@ -819,6 +951,26 @@ export default {
 
 .chart-card.full-width {
   grid-column: 1 / -1;
+}
+
+/* Subtle link on the right of a card header (e.g. "View all") */
+.card-header-link {
+  font-size: 0.813rem;
+  font-weight: 600;
+  color: #64748b;
+  text-decoration: none;
+  transition: color 0.15s ease;
+}
+
+.card-header-link:hover {
+  color: #0f172a;
+  text-decoration: underline;
+}
+
+.card-header-link:focus-visible {
+  outline: 2px solid #3b82f6;
+  outline-offset: 2px;
+  border-radius: 4px;
 }
 
 .chart-content {

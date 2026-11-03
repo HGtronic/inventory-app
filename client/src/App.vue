@@ -22,12 +22,16 @@
           <router-link to="/demand" :class="{ active: $route.path === '/demand' }">
             {{ t('nav.demandForecast') }}
           </router-link>
+          <router-link to="/restocking" :class="{ active: $route.path === '/restocking' }">
+            {{ t('nav.restocking') }}
+          </router-link>
           <router-link to="/reports" :class="{ active: $route.path === '/reports' }">
-            Reports
+            {{ t('nav.reports') }}
           </router-link>
         </nav>
         <LanguageSwitcher />
         <ProfileMenu
+          :pending-task-count="pendingTaskCount"
           @show-profile-details="showProfileDetails = true"
           @show-tasks="showTasks = true"
         />
@@ -81,9 +85,21 @@ export default {
     const showTasks = ref(false)
     const apiTasks = ref([])
 
-    // Merge mock tasks from currentUser with API tasks
+    // User changes to the built-in mock tasks, keyed by their numeric id: { [id]: { status?, deleted? } }.
+    // currentUser is a computed that returns a fresh plain (non-reactive) object whenever the locale
+    // changes, so changes cannot be stored on its tasks: the UI would not update and a language
+    // switch would discard them. They live here instead and are layered over the mock tasks below.
+    const mockTaskState = ref({})
+
+    // Merge mock tasks from currentUser (with local changes applied) with API tasks
     const tasks = computed(() => {
-      return [...currentUser.value.tasks, ...apiTasks.value]
+      const mockTasks = currentUser.value.tasks
+        .filter(task => !mockTaskState.value[task.id]?.deleted)
+        .map(task => {
+          const status = mockTaskState.value[task.id]?.status
+          return status ? { ...task, status } : task
+        })
+      return [...mockTasks, ...apiTasks.value]
     })
 
     const loadTasks = async () => {
@@ -110,11 +126,8 @@ export default {
         const isMockTask = currentUser.value.tasks.some(t => t.id === taskId)
 
         if (isMockTask) {
-          // Remove from mock tasks
-          const index = currentUser.value.tasks.findIndex(t => t.id === taskId)
-          if (index !== -1) {
-            currentUser.value.tasks.splice(index, 1)
-          }
+          // Hide the mock task (it stays in currentUser, so the id still counts as a mock task)
+          mockTaskState.value[taskId] = { ...mockTaskState.value[taskId], deleted: true }
         } else {
           // Remove from API tasks
           await api.deleteTask(taskId)
@@ -131,8 +144,12 @@ export default {
         const mockTask = currentUser.value.tasks.find(t => t.id === taskId)
 
         if (mockTask) {
-          // Toggle mock task status
-          mockTask.status = mockTask.status === 'pending' ? 'completed' : 'pending'
+          // Toggle from the current effective status (local override first, else the base status)
+          const currentStatus = mockTaskState.value[taskId]?.status ?? mockTask.status
+          mockTaskState.value[taskId] = {
+            ...mockTaskState.value[taskId],
+            status: currentStatus === 'pending' ? 'completed' : 'pending'
+          }
         } else {
           // Toggle API task
           const updatedTask = await api.toggleTask(taskId)
@@ -148,11 +165,15 @@ export default {
 
     onMounted(loadTasks)
 
+    // Badge count for ProfileMenu, from the same merged list the TasksModal shows
+    const pendingTaskCount = computed(() => tasks.value.filter(task => task.status === 'pending').length)
+
     return {
       t,
       showProfileDetails,
       showTasks,
       tasks,
+      pendingTaskCount,
       addTask,
       deleteTask,
       toggleTask
@@ -249,6 +270,14 @@ body {
 .nav-tabs a:hover {
   color: #0f172a;
   background: #f1f5f9;
+}
+
+/* Seven tabs at full padding need ~1290px of header; tighten them so the header
+   still fits common laptop widths (1280px and down to ~1200px) without overflow. */
+@media (max-width: 1400px) {
+  .nav-tabs a {
+    padding: 0.625rem 0.75rem;
+  }
 }
 
 .nav-tabs a.active {

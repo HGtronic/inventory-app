@@ -35,17 +35,22 @@ fi
 # Fallback: kill any remaining processes on the ports
 echo -e "${YELLOW}Cleaning up any remaining processes...${NC}"
 
-# Kill processes on port 8001 (backend)
-BACKEND_PIDS=$(lsof -ti:8001 2>/dev/null || true)
-if [ ! -z "$BACKEND_PIDS" ]; then
-    echo "$BACKEND_PIDS" | xargs kill 2>/dev/null || true
-fi
+# Stops only listeners on $1 whose command matches $2. Another program (for
+# example Docker) may hold the same port, and it must not be killed.
+kill_app_on_port() {
+    local port=$1 pattern=$2 pid
+    for pid in $(lsof -ti tcp:"$port" -sTCP:LISTEN 2>/dev/null || true); do
+        if ps -o command= -p "$pid" | grep -qE "$pattern"; then
+            kill "$pid" 2>/dev/null || true
+        fi
+    done
+}
 
-# Kill processes on port 3000 (frontend)
-FRONTEND_PIDS=$(lsof -ti:3000 2>/dev/null || true)
-if [ ! -z "$FRONTEND_PIDS" ]; then
-    echo "$FRONTEND_PIDS" | xargs kill 2>/dev/null || true
-fi
+# Backend (port 8001 unless API_PORT is set, matching start.sh)
+kill_app_on_port "${API_PORT:-8001}" "python|uvicorn"
+
+# Frontend (port 3000)
+kill_app_on_port 3000 "node|vite"
 
 # Clean up log files
 rm -f /tmp/inventory-backend.log

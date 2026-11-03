@@ -17,6 +17,14 @@ echo -e "${BLUE}Starting Factory Inventory Management System...${NC}\n"
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 PROJECT_ROOT="$( cd "$SCRIPT_DIR/.." && pwd )"
 
+# Backend port: 8001 unless API_PORT is set (e.g. `API_PORT=8002 ./scripts/start.sh`
+# when 8001 is taken). An explicit API_PORT also points the frontend at that
+# port, unless VITE_API_BASE_URL is already set.
+if [ -n "$API_PORT" ] && [ -z "$VITE_API_BASE_URL" ]; then
+    export VITE_API_BASE_URL="http://localhost:$API_PORT/api"
+fi
+export API_PORT="${API_PORT:-8001}"
+
 # Check if backend dependencies are installed
 if [ ! -d "$PROJECT_ROOT/server/.venv" ]; then
     echo -e "${YELLOW}Backend dependencies not found. Installing...${NC}"
@@ -33,7 +41,7 @@ if [ ! -d "$PROJECT_ROOT/client/node_modules" ]; then
 fi
 
 # Start backend server in background
-echo -e "${GREEN}Starting backend server on http://localhost:8001${NC}"
+echo -e "${GREEN}Starting backend server on http://localhost:$API_PORT${NC}"
 cd "$PROJECT_ROOT/server"
 uv run python3 main.py > /tmp/inventory-backend.log 2>&1 &
 BACKEND_PID=$!
@@ -52,8 +60,8 @@ sleep 2
 
 echo -e "\n${GREEN}✓ Application started successfully!${NC}"
 echo -e "${BLUE}Frontend:${NC} http://localhost:3000"
-echo -e "${BLUE}Backend API:${NC} http://localhost:8001"
-echo -e "${BLUE}API Docs:${NC} http://localhost:8001/docs"
+echo -e "${BLUE}Backend API:${NC} http://localhost:$API_PORT"
+echo -e "${BLUE}API Docs:${NC} http://localhost:$API_PORT/docs"
 echo -e "\n${YELLOW}Logs:${NC}"
 echo -e "  Backend: /tmp/inventory-backend.log"
 echo -e "  Frontend: /tmp/inventory-frontend.log"

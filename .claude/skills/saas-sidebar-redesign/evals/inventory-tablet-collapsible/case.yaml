@@ -1,0 +1,6 @@
+schema_version: "1.1"
+name: inventory-tablet-collapsible
+expected_outcome: |
+  A left sidebar that collapses to icon-only on desktop/landscape and becomes an off-canvas drawer below tablet portrait width; global filters stay reachable (sticky) on every page; visual cleanup with consistent spacing; build passes.
+context:
+  scaffold_script: place-files.sh

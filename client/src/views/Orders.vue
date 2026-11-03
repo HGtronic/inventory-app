@@ -29,6 +29,58 @@
 
       <div class="card">
         <div class="card-header">
+          <h3 class="card-title">{{ t('orders.submittedOrders') }} ({{ restockOrders.length }})</h3>
+        </div>
+        <div v-if="restockOrders.length > 0" class="table-container submitted-table-container">
+          <table class="orders-table">
+            <thead>
+              <tr>
+                <th class="col-order-number">{{ t('orders.table.orderNumber') }}</th>
+                <th class="col-date">{{ t('orders.table.orderDate') }}</th>
+                <th class="col-items">{{ t('orders.table.items') }}</th>
+                <th class="col-value">{{ t('orders.table.totalCost') }}</th>
+                <th class="col-lead-time">{{ t('orders.table.leadTime') }}</th>
+                <th class="col-date">{{ t('orders.table.expectedDelivery') }}</th>
+                <th class="col-status">{{ t('orders.table.status') }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="order in restockOrders" :key="order.id">
+                <td class="col-order-number"><strong>{{ order.order_number }}</strong></td>
+                <td class="col-date">{{ formatDate(order.order_date) }}</td>
+                <td class="col-items">
+                  <details class="items-details">
+                    <summary class="items-summary">
+                      {{ t('orders.itemsCount', { count: order.items.length }) }}
+                    </summary>
+                    <div class="items-dropdown">
+                      <div v-for="line in order.items" :key="line.item_sku" class="item-entry">
+                        <span class="item-name">{{ translateProductName(line.item_name) }}</span>
+                        <span class="item-meta">{{ t('orders.quantity') }}: {{ line.quantity }} @ {{ formatCurrencyWithDecimals(line.unit_cost, currentCurrency, 2) }}</span>
+                      </div>
+                    </div>
+                  </details>
+                </td>
+                <td class="col-value"><strong>{{ formatCurrencyWithDecimals(order.total_cost, currentCurrency, 2) }}</strong></td>
+                <td class="col-lead-time">{{ t('orders.leadTimeDays', { days: order.lead_time_days }) }}</td>
+                <td class="col-date">{{ formatDate(order.expected_delivery) }}</td>
+                <td class="col-status">
+                  <span :class="['badge', getOrderStatusClass(order.status)]">
+                    {{ t(`status.${order.status.toLowerCase()}`) }}
+                  </span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div v-else class="empty-state">
+          <span>{{ t('orders.noSubmittedOrders') }}</span>
+          <router-link to="/restocking">{{ t('nav.restocking') }}</router-link>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
           <h3 class="card-title">{{ t('orders.allOrders') }} ({{ orders.length }})</h3>
         </div>
         <div class="table-container">
@@ -56,7 +108,7 @@
                     <div class="items-dropdown">
                       <div v-for="(item, idx) in order.items" :key="idx" class="item-entry">
                         <span class="item-name">{{ translateProductName(item.name) }}</span>
-                        <span class="item-meta">{{ t('orders.quantity') }}: {{ item.quantity }} @ {{ currencySymbol }}{{ item.unit_price }}</span>
+                        <span class="item-meta">{{ t('orders.quantity') }}: {{ item.quantity }} @ {{ formatCurrencyWithDecimals(item.unit_price, currentCurrency, 2) }}</span>
                       </div>
                     </div>
                   </details>
@@ -68,7 +120,7 @@
                 </td>
                 <td class="col-date">{{ formatDate(order.order_date) }}</td>
                 <td class="col-date">{{ formatDate(order.expected_delivery) }}</td>
-                <td class="col-value"><strong>{{ currencySymbol }}{{ order.total_value.toLocaleString() }}</strong></td>
+                <td class="col-value"><strong>{{ formatCurrencyWithDecimals(order.total_value, currentCurrency, 2) }}</strong></td>
               </tr>
             </tbody>
           </table>
@@ -83,18 +135,18 @@ import { ref, onMounted, watch, computed } from 'vue'
 import { api } from '../api'
 import { useFilters } from '../composables/useFilters'
 import { useI18n } from '../composables/useI18n'
+import { formatCurrencyWithDecimals } from '../utils/currency'
 
 export default {
   name: 'Orders',
   setup() {
     const { t, currentCurrency, translateProductName, translateCustomerName } = useI18n()
 
-    const currencySymbol = computed(() => {
-      return currentCurrency.value === 'JPY' ? '¥' : '$'
-    })
     const loading = ref(true)
     const error = ref(null)
     const orders = ref([])
+    // Restock orders are not affected by the global filters (they have no warehouse/category).
+    const restockOrders = ref([])
 
     // Use shared filters
     const {
@@ -109,7 +161,16 @@ export default {
       try {
         loading.value = true
         const filters = getCurrentFilters()
-        const fetchedOrders = await api.getOrders(filters)
+        // A restock-orders failure only empties the Submitted Orders card; it must not
+        // hide customer orders behind the page-level error.
+        const [fetchedOrders, fetchedRestockOrders] = await Promise.all([
+          api.getOrders(filters),
+          api.getRestockOrders().catch(err => {
+            console.error('Failed to load restock orders:', err)
+            return []
+          })
+        ])
+        restockOrders.value = fetchedRestockOrders
 
         // Sort orders by order_date (earliest first)
         orders.value = fetchedOrders.sort((a, b) => {
@@ -138,7 +199,8 @@ export default {
         'Delivered': 'success',
         'Shipped': 'info',
         'Processing': 'warning',
-        'Backordered': 'danger'
+        'Backordered': 'danger',
+        'Submitted': 'info'
       }
       return statusMap[status] || 'info'
     }
@@ -146,7 +208,9 @@ export default {
     const formatDate = (dateString) => {
       const { currentLocale } = useI18n()
       const locale = currentLocale.value === 'ja' ? 'ja-JP' : 'en-US'
-      return new Date(dateString).toLocaleDateString(locale, {
+      const date = new Date(dateString)
+      if (isNaN(date.getTime())) return '-'
+      return date.toLocaleDateString(locale, {
         year: 'numeric',
         month: 'short',
         day: 'numeric'
@@ -160,10 +224,12 @@ export default {
       loading,
       error,
       orders,
+      restockOrders,
+      currentCurrency,
+      formatCurrencyWithDecimals,
       getOrdersByStatus,
       getOrderStatusClass,
       formatDate,
-      currencySymbol,
       translateProductName,
       translateCustomerName
     }
@@ -201,6 +267,29 @@ export default {
 
 .col-value {
   width: 120px;
+}
+
+.col-lead-time {
+  width: 110px;
+}
+
+/* The items dropdown is absolutely positioned; don't let it add a scrollbar to the card. */
+.submitted-table-container {
+  overflow: visible;
+}
+
+.empty-state {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1rem 0.25rem;
+  color: #64748b;
+  font-size: 0.938rem;
+}
+
+.empty-state a {
+  color: #2563eb;
+  font-weight: 600;
 }
 
 /* Items details styling */
