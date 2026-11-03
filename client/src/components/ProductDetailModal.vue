@@ -52,12 +52,12 @@
 
               <div class="info-item">
                 <div class="info-label">Current Stock</div>
-                <div class="info-value">{{ product.quantityOnHand }} units</div>
+                <div class="info-value">{{ formatUnits(product.quantityOnHand) }}</div>
               </div>
 
               <div class="info-item">
                 <div class="info-label">Reorder Point</div>
-                <div class="info-value">{{ product.reorderPoint }} units</div>
+                <div class="info-value">{{ formatUnits(product.reorderPoint) }}</div>
               </div>
 
               <div class="info-item">
@@ -106,6 +106,11 @@ const emit = defineEmits(['close'])
 
 const close = () => {
   emit('close')
+}
+
+// Show a dash (not a bare " units") when the product has no matching inventory item
+const formatUnits = (quantity) => {
+  return quantity === undefined || quantity === null ? '-' : `${quantity} units`
 }
 
 const formatDate = (dateString) => {

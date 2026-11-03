@@ -80,12 +80,7 @@
         <div class="chart-container">
           <div class="bar-chart">
             <div class="y-axis">
-              <span>{{ formatAxisTick(25) }}</span>
-              <span>{{ formatAxisTick(20) }}</span>
-              <span>{{ formatAxisTick(15) }}</span>
-              <span>{{ formatAxisTick(10) }}</span>
-              <span>{{ formatAxisTick(5) }}</span>
-              <span>{{ formatAxisTick(0) }}</span>
+              <span v-for="tick in monthlyCostTicks" :key="tick">{{ formatAxisTick(tick) }}</span>
             </div>
             <div class="chart-area">
               <div v-for="month in monthlySpending" :key="month.month" class="bar-group">
@@ -181,6 +176,7 @@ import {
   formatCurrencyWithDecimals,
   formatCurrencyCompact
 } from '../utils/currency'
+import { parseLocalDate } from '../utils/date'
 import CostDetailModal from '../components/CostDetailModal.vue'
 
 export default {
@@ -351,9 +347,30 @@ export default {
       return Math.ceil(max / 1000) // Return in K
     })
 
+    // Monthly Cost Flow axis: the tallest stacked month (all four cost types) sets the scale.
+    // The 5 intervals use a "nice" step (1/2/2.5/4/5 x 10^n) so the top tick is a round number
+    // that is >= the tallest stack. Values are USD.
+    const monthlyCostMax = computed(() => {
+      const tallest = Math.max(
+        0,
+        ...monthlySpending.value.map(m => m.procurement + m.operational + m.labor + m.overhead)
+      )
+      if (tallest <= 0) return 100000 // no data yet: arbitrary non-zero scale avoids divide-by-zero
+      const rawStep = tallest / 5
+      const magnitude = Math.pow(10, Math.floor(Math.log10(rawStep)))
+      const niceMultiple = [1, 2, 2.5, 4, 5, 10].find(m => m * magnitude >= rawStep)
+      return niceMultiple * magnitude * 5
+    })
+
+    // Six y-axis ticks, top to bottom, in thousands of USD (the unit formatAxisTick takes)
+    const monthlyCostTicks = computed(() => {
+      return [5, 4, 3, 2, 1, 0].map(i => (monthlyCostMax.value / 5) * i / 1000)
+    })
+
     const loadData = async () => {
       try {
         loading.value = true
+        error.value = null
         const [summaryRes, monthlyRes, categoryRes, transactionsRes, ordersRes] = await Promise.all([
           api.getSpendingSummary(),
           api.getMonthlySpending(),
@@ -389,9 +406,9 @@ export default {
       return formatCurrencyCompact(thousandsUsd * 1000, currentCurrency.value)
     }
 
+    // Segment height as a % of the axis max, so a stack's segments add up to total / max
     const getBarHeight = (value) => {
-      const maxValue = 25000
-      return (value / maxValue) * 100
+      return (value / monthlyCostMax.value) * 100
     }
 
     const getRevenueBarHeight = (value) => {
@@ -407,7 +424,8 @@ export default {
     }
 
     const formatDateShort = (dateString) => {
-      const date = new Date(dateString)
+      // Transaction dates are 'YYYY-MM-DD'; parse as local so US time zones don't show the day before
+      const date = parseLocalDate(dateString)
       const month = (date.getMonth() + 1).toString().padStart(2, '0')
       const day = date.getDate().toString().padStart(2, '0')
       const year = date.getFullYear().toString().slice(-2)
@@ -483,6 +501,7 @@ export default {
       formatCurrencyWithDecimals,
       currentCurrency,
       formatAxisTick,
+      monthlyCostTicks,
       getBarHeight,
       getRevenueBarHeight,
       formatDate,

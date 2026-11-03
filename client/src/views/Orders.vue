@@ -160,6 +160,7 @@ export default {
     const loadOrders = async () => {
       try {
         loading.value = true
+        error.value = null
         const filters = getCurrentFilters()
         // A restock-orders failure only empties the Submitted Orders card; it must not
         // hide customer orders behind the page-level error.

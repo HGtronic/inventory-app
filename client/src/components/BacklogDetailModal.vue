@@ -61,7 +61,8 @@
                 <div class="info-value">{{ backlogItem.quantity_available }} units</div>
               </div>
 
-              <div class="info-item">
+              <!-- The API's BacklogItem has no expected_date, so only render the row when one exists -->
+              <div v-if="backlogItem.expected_date" class="info-item">
                 <div class="info-label">Expected Date</div>
                 <div class="info-value">{{ formatDate(backlogItem.expected_date) }}</div>
               </div>
