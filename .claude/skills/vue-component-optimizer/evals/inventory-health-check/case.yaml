@@ -1,0 +1,12 @@
+schema_version: "1.1"
+name: inventory-health-check
+expected_outcome: |
+  A ranked, located report on the real inventory client that finds method-based derived data in
+  templates (Demand getForecastsByTrend x12, Orders getOrdersByStatus x4), useI18n() called inside
+  per-row formatters, the copied modal shell markup/CSS (only PurchaseOrderModal handles Escape), the
+  repeated data-loading boilerplate and its error-reset divergence, diverged helper copies and ignored
+  utils/currency.js helpers, and Dashboard.vue's size and dead code. Performance severity is
+  calibrated to the small data sizes, decoys are not flagged, no code is changed, and it asks which
+  findings to apply.
+context:
+  scaffold_script: place-files.sh
